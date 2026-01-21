@@ -1,10 +1,10 @@
 import React from 'react'
 import styles from './ExtractedColorsPanel.module.scss'
 import tinycolor from "tinycolor2"
-import { ColorPart, RecipeSuggestion } from '../../types/types'
+import { ColorPart, ExtractedColor, RecipeSuggestion } from '../../types/types'
 
 type ExtractedColorsPanelProps = {
-    colors: string[]
+    colors: ExtractedColor[]
     selectedIndex: number | null
     onSelect: (index: number) => void
     referenceImageUrl: string | null
@@ -84,10 +84,10 @@ const ExtractedColorsPanel: React.FC<ExtractedColorsPanelProps> = ({
                                     const isSelected = index === selectedIndex
                                     return (
                                         <button
-                                            key={ `${ color }-${ index }` }
+                                            key={ `${ color.rgbString }-${ index }` }
                                             type="button"
                                             className={ `${ styles.swatchButton } ${ isSelected ? styles.selected : '' }` }
-                                            style={ { backgroundColor: color } }
+                                            style={ { backgroundColor: color.rgbString } }
                                             onClick={ () => onSelect(index) }
                                             data-testid="extracted-swatch"
                                             aria-pressed={ isSelected }
@@ -102,14 +102,21 @@ const ExtractedColorsPanel: React.FC<ExtractedColorsPanelProps> = ({
                                 { colors.map((color, index) => {
                                     const suggestion = suggestions[ index ]
                                     return (
-                                        <div key={ `${ color }-detail-${ index }` } className={ styles.colorCard }>
+                                        <div key={ `${ color.rgbString }-detail-${ index }` } className={ styles.colorCard }>
                                             <div
                                                 className={ styles.colorPreview }
-                                                style={ { backgroundColor: color } }
+                                                style={ { backgroundColor: color.rgbString } }
                                             />
                                             <div className={ styles.colorDetails }>
-                                                <div className={ styles.colorTitle }>
-                                                    Color { index + 1 }
+                                                <div className={ styles.colorTitle }>Color { index + 1 }</div>
+                                                <div className={ styles.colorMeta }>
+                                                    <span className={ styles.coverageLabel }>Image share</span>
+                                                    <span
+                                                        className={ styles.coverageValue }
+                                                        data-testid={ `coverage-${ index }` }
+                                                    >
+                                                        { color.coveragePct.toFixed(1) }%
+                                                    </span>
                                                 </div>
 
                                                 { suggestion ? (

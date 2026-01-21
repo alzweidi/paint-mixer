@@ -1,6 +1,7 @@
 import { extractDominantColorsFromPixels, pickAutoColorCount } from "../../utils/extractDominantColors"
+import { ExtractedColor } from "../../types/types"
 
-const MAX_DIMENSION = 200
+const MAX_DIMENSION = 240
 const AUTO_MAX_COLORS = 12
 
 const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -12,8 +13,17 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
     })
 }
 
+const toExtractedColors = (colors: string[], clusterSizes: number[]): ExtractedColor[] => {
+    const total = clusterSizes.reduce((sum, size) => sum + size, 0)
+    return colors.map((rgbString, index) => {
+        const size = clusterSizes[ index ] ?? 0
+        const coveragePct = total > 0 ? (size / total) * 100 : 0
+        return { rgbString, coveragePct }
+    })
+}
+
 export const useImageColorExtraction = () => {
-    const extractColors = async (file: File, colorCount: number | "auto"): Promise<string[]> => {
+    const extractColors = async (file: File, colorCount: number | "auto"): Promise<ExtractedColor[]> => {
         const objectUrl = URL.createObjectURL(file)
 
         try {
@@ -49,7 +59,7 @@ export const useImageColorExtraction = () => {
                     min: 5,
                     max: AUTO_MAX_COLORS,
                 })
-                return extraction.colors.slice(0, autoCount)
+                return toExtractedColors(extraction.colors, extraction.clusterSizes).slice(0, autoCount)
             }
 
             const requestedCount = Math.max(0, Math.floor(colorCount))
@@ -57,7 +67,8 @@ export const useImageColorExtraction = () => {
                 return []
             }
 
-            return extractDominantColorsFromPixels(pixels, requestedCount).colors
+            const extraction = extractDominantColorsFromPixels(pixels, requestedCount)
+            return toExtractedColors(extraction.colors, extraction.clusterSizes)
         } finally {
             URL.revokeObjectURL(objectUrl)
         }

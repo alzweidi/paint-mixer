@@ -11,9 +11,12 @@ const palette = [
 describe('<ExtractedColorsPanel />', () => {
     it('renders extracted swatches and handles selection', () => {
         const onSelect = jest.fn()
-        const { getAllByTestId } = render(
+        const { getAllByTestId, getByTestId } = render(
             <ExtractedColorsPanel
-                colors={ [ 'rgb(1, 2, 3)', 'rgb(9, 8, 7)' ] }
+                colors={ [
+                    { rgbString: 'rgb(1, 2, 3)', coveragePct: 62.5 },
+                    { rgbString: 'rgb(9, 8, 7)', coveragePct: 37.5 }
+                ] }
                 selectedIndex={ 1 }
                 onSelect={ onSelect }
                 referenceImageUrl={ null }
@@ -25,6 +28,7 @@ describe('<ExtractedColorsPanel />', () => {
         const swatches = getAllByTestId('extracted-swatch')
         expect(swatches).toHaveLength(2)
         expect(swatches[ 1 ]).toHaveAttribute('aria-pressed', 'true')
+        expect(getByTestId('coverage-0')).toHaveTextContent('62.5%')
 
         fireEvent.click(swatches[ 0 ])
         expect(onSelect).toHaveBeenCalledWith(0)
@@ -47,7 +51,7 @@ describe('<ExtractedColorsPanel />', () => {
         const handleApply = jest.fn()
         const { getAllByTestId, getByRole, getByText } = render(
             <ExtractedColorsPanel
-                colors={ [ 'rgb(1, 2, 3)' ] }
+                colors={ [ { rgbString: 'rgb(1, 2, 3)', coveragePct: 88.8 } ] }
                 selectedIndex={ 0 }
                 onSelect={ onSelect }
                 referenceImageUrl={ 'blob:reference' }
@@ -98,7 +102,7 @@ describe('<ExtractedColorsPanel />', () => {
 
         const { getByText, queryByRole } = render(
             <ExtractedColorsPanel
-                colors={ [ 'rgb(20, 20, 20)' ] }
+                colors={ [ { rgbString: 'rgb(20, 20, 20)', coveragePct: 12 } ] }
                 selectedIndex={ 0 }
                 onSelect={ onSelect }
                 referenceImageUrl={ 'blob:reference' }
@@ -124,7 +128,7 @@ describe('<ExtractedColorsPanel />', () => {
 
         const { getByText } = render(
             <ExtractedColorsPanel
-                colors={ [ 'rgb(20, 20, 20)' ] }
+                colors={ [ { rgbString: 'rgb(20, 20, 20)', coveragePct: 45 } ] }
                 selectedIndex={ 0 }
                 onSelect={ onSelect }
                 referenceImageUrl={ null }

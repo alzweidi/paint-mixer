@@ -126,6 +126,23 @@
     font-size: 0.95rem;
 }
 
+.colorMeta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.coverageLabel {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.65rem;
+}
+
+.coverageValue {
+    font-weight: 700;
+}
+
 .suggestion {
     display: flex;
     flex-direction: column;

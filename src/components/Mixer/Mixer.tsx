@@ -27,7 +27,7 @@ import { useLocalStorage } from '../../data/hooks/useLocalStorage'
 import { useImageColorExtraction } from '../../data/hooks/useImageColorExtraction'
 
 import { defaultPalette } from '../../utils/palettes/defaultPalette'
-import { ColorPart, RecipeSuggestion } from '../../types/types'
+import { ColorPart, ExtractedColor, RecipeSuggestion } from '../../types/types'
 
 const Mixer: React.FC = () => {
 
@@ -40,7 +40,7 @@ const Mixer: React.FC = () => {
     const [ matchPercentage, setMatchPercentage ] = useState<string>('0.00')
     const [ referenceImageFile, setReferenceImageFile ] = useState<File | null>(null)
     const [ referenceImageUrl, setReferenceImageUrl ] = useState<string | null>(null)
-    const [ extractedColors, setExtractedColors ] = useState<string[]>([])
+    const [ extractedColors, setExtractedColors ] = useState<ExtractedColor[]>([])
     const [ selectedExtractedColorIndex, setSelectedExtractedColorIndex ] = useState<number | null>(null)
     const [ extractedColorCount, setExtractedColorCount ] = useState<number | "auto">("auto")
 
@@ -87,7 +87,7 @@ const Mixer: React.FC = () => {
             return extractedColors.map(() => null)
         }
 
-        return extractedColors.map((color) => suggestRecipe(basePalette, color))
+        return extractedColors.map((color) => suggestRecipe(basePalette, color.rgbString))
     }, [ basePalette, extractedColors ])
 
     const handleApplySuggestion = (suggestion: RecipeSuggestion) => {
@@ -137,7 +137,7 @@ const Mixer: React.FC = () => {
     }
 
     const handleExtractedColorSelect = (index: number) => {
-        const selectedColor = extractedColors[ index ]
+        const selectedColor = extractedColors[ index ]?.rgbString
         if (!selectedColor) {
             return
         }

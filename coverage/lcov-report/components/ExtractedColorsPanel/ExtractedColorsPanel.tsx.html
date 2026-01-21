@@ -225,7 +225,14 @@
 <a name='L160'></a><a href='#L160'>160</a>
 <a name='L161'></a><a href='#L161'>161</a>
 <a name='L162'></a><a href='#L162'>162</a>
-<a name='L163'></a><a href='#L163'>163</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -362,6 +369,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -390,10 +404,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import React from 'react'
 import styles from './ExtractedColorsPanel.module.scss'
 import tinycolor from "tinycolor2"
-import { ColorPart, RecipeSuggestion } from '../../types/types'
+import { ColorPart, ExtractedColor, RecipeSuggestion } from '../../types/types'
 &nbsp;
 type ExtractedColorsPanelProps = {
-    colors: string[]
+    colors: ExtractedColor[]
     selectedIndex: number | null
     onSelect: (index: number) =&gt; void
     referenceImageUrl: string | null
@@ -473,10 +487,10 @@ const ExtractedColorsPanel: React.FC&lt;ExtractedColorsPanelProps&gt; = ({
                                     const isSelected = index === selectedIndex
                                     return (
                                         &lt;button
-                                            key={ `${ color }-${ index }` }
+                                            key={ `${ color.rgbString }-${ index }` }
                                             type="button"
                                             className={ `${ styles.swatchButton } ${ isSelected ? styles.selected : '' }` }
-                                            style={ { backgroundColor: color } }
+                                            style={ { backgroundColor: color.rgbString } }
                                             onClick={ () =&gt; onSelect(index) }
                                             data-testid="extracted-swatch"
                                             aria-pressed={ isSelected }
@@ -491,14 +505,21 @@ const ExtractedColorsPanel: React.FC&lt;ExtractedColorsPanelProps&gt; = ({
                                 { colors.map((color, index) =&gt; {
                                     const suggestion = suggestions[ index ]
                                     return (
-                                        &lt;div key={ `${ color }-detail-${ index }` } className={ styles.colorCard }&gt;
+                                        &lt;div key={ `${ color.rgbString }-detail-${ index }` } className={ styles.colorCard }&gt;
                                             &lt;div
                                                 className={ styles.colorPreview }
-                                                style={ { backgroundColor: color } }
+                                                style={ { backgroundColor: color.rgbString } }
                                             /&gt;
                                             &lt;div className={ styles.colorDetails }&gt;
-                                                &lt;div className={ styles.colorTitle }&gt;
-                                                    Color { index + 1 }
+                                                &lt;div className={ styles.colorTitle }&gt;Color { index + 1 }&lt;/div&gt;
+                                                &lt;div className={ styles.colorMeta }&gt;
+                                                    &lt;span className={ styles.coverageLabel }&gt;Image share&lt;/span&gt;
+                                                    &lt;span
+                                                        className={ styles.coverageValue }
+                                                        data-testid={ `coverage-${ index }` }
+                                                    &gt;
+                                                        { color.coveragePct.toFixed(1) }%
+                                                    &lt;/span&gt;
                                                 &lt;/div&gt;
 &nbsp;
                                                 { suggestion ? (
@@ -556,7 +577,7 @@ export default ExtractedColorsPanel
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-21T22:41:02.083Z
+                at 2026-01-21T23:29:03.420Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

@@ -23,6 +23,11 @@ export type RecipeSuggestion = {
 	matchPct: number
 }
 
+export type ExtractedColor = {
+	rgbString: string
+	coveragePct: number
+}
+
 export type Rgb = {
 	r: number
 	g: number
