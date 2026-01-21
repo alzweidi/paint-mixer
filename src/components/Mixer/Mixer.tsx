@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import styles from './Mixer.module.scss'
 
 //components
@@ -8,20 +8,26 @@ import MixGraph from '../MixGraph/MixGraph'
 import ColorSwatches from '../ColorSwatches/ColorSwatches'
 import MixedColorContainer from '../MixedColorContainer/MixedColorContainer'
 import TargetColorContainer from '../TargetColorContainer/TargetColorContainer'
+import ImageUploader from '../ImageUploader/ImageUploader'
+import ExtractedColorsPanel from '../ExtractedColorsPanel/ExtractedColorsPanel'
+import PaintNameSearch from '../PaintNameSearch/PaintNameSearch'
 
 //color mixing and conversion libraries
 import { rgbToXyz, xyzToLab, deltaE94, normalizeRgbString } from '../../utils/colorConversion'
 import mixbox from 'mixbox'
 import tinycolor from "tinycolor2"
 import { hsvaToRgbaString } from '@uiw/color-convert'
+import { rgbStringToHsva } from '../../utils/rgbStringToHsva'
+import { suggestRecipe } from '../../utils/suggestRecipe'
 
 //custom hooks
 import usePaletteManager from '../../data/hooks/usePaletteManager'
 import { useColorMatching } from '../../data/hooks/useColorMatching'
 import { useLocalStorage } from '../../data/hooks/useLocalStorage'
+import { useImageColorExtraction } from '../../data/hooks/useImageColorExtraction'
 
 import { defaultPalette } from '../../utils/palettes/defaultPalette'
-import { ColorPart } from '../../types/types'
+import { ColorPart, RecipeSuggestion } from '../../types/types'
 
 const Mixer: React.FC = () => {
 
@@ -32,6 +38,11 @@ const Mixer: React.FC = () => {
     const [ targetColor, setTargetColor ] = useState({ h: 214, s: 43, v: 90, a: 1 })
     const [ isShowingTargetColorPicker, setIsShowingTargetColorPicker ] = useState<boolean>(false)
     const [ matchPercentage, setMatchPercentage ] = useState<string>('0.00')
+    const [ referenceImageFile, setReferenceImageFile ] = useState<File | null>(null)
+    const [ referenceImageUrl, setReferenceImageUrl ] = useState<string | null>(null)
+    const [ extractedColors, setExtractedColors ] = useState<string[]>([])
+    const [ selectedExtractedColorIndex, setSelectedExtractedColorIndex ] = useState<number | null>(null)
+    const [ extractedColorCount, setExtractedColorCount ] = useState<number | "auto">("auto")
 
     const [ savedPalette, setSavedPalette ] = useLocalStorage('savedPalette', defaultPalette)
     const initialPalette: (any) = savedPalette
@@ -44,12 +55,58 @@ const Mixer: React.FC = () => {
         handleRemoveFromPalette,
         resetPalette,
         addToPalette,
-        updateColorName
+        updateColorName,
+        applyMixParts
     } = usePaletteManager(initialPalette)
+
+    const { extractColors } = useImageColorExtraction()
 
     const { colorName: mixedColorName } = useColorMatching(mixedColor)
     const { colorName: targetColorName } = useColorMatching(hsvaToRgbaString(targetColor))
     const { colorName: addColorName } = useColorMatching(tinycolor(addColor)?.toHexString() ?? '')
+
+    const basePaletteIndices = useMemo(() => {
+        return palette.reduce<number[]>((indices, color, index) => {
+            if (!color.recipe) {
+                indices.push(index)
+            }
+            return indices
+        }, [])
+    }, [ palette ])
+
+    const basePalette = useMemo(() => {
+        return basePaletteIndices.map((index) => palette[ index ])
+    }, [ basePaletteIndices, palette ])
+
+    const recipeSuggestions = useMemo(() => {
+        if (!extractedColors.length) {
+            return []
+        }
+
+        if (!basePalette.length) {
+            return extractedColors.map(() => null)
+        }
+
+        return extractedColors.map((color) => suggestRecipe(basePalette, color))
+    }, [ basePalette, extractedColors ])
+
+    const handleApplySuggestion = (suggestion: RecipeSuggestion) => {
+        const mappedUpdates = suggestion.ingredients
+            .map((ingredient) => {
+                const paletteIndex = basePaletteIndices[ ingredient.index ]
+                if (paletteIndex === undefined) {
+                    return null
+                }
+                return { index: paletteIndex, parts: ingredient.parts }
+            })
+            .filter((ingredient): ingredient is { index: number; parts: number } => ingredient !== null)
+
+        if (!mappedUpdates.length) {
+            return
+        }
+
+        applyMixParts(mappedUpdates)
+    }
 
     // Helper function to toggle the isUsingTargetColor state
     const toggleIsUsingTargetColor = () => {
@@ -69,6 +126,37 @@ const Mixer: React.FC = () => {
     // Helper function to determine if the palette has any colors with partsInMix > 0
     const hasPartsInMix = (): boolean => {
         return palette.some(color => color.partsInMix > 0)
+    }
+
+    const handleImageSelected = async (file: File, objectUrl: string) => {
+        setReferenceImageFile(file)
+        setReferenceImageUrl(objectUrl)
+        const colors = await extractColors(file, extractedColorCount)
+        setExtractedColors(colors)
+        setSelectedExtractedColorIndex(colors.length ? 0 : null)
+    }
+
+    const handleExtractedColorSelect = (index: number) => {
+        const selectedColor = extractedColors[ index ]
+        if (!selectedColor) {
+            return
+        }
+        setSelectedExtractedColorIndex(index)
+        setTargetColor(rgbStringToHsva(selectedColor))
+        setIsUsingTargetColor(true)
+        setIsShowingTargetColorPicker(false)
+    }
+
+    const handleColorCountChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const value = event.target.value
+        const nextCount = value === "auto" ? "auto" : Number(value)
+        setExtractedColorCount(nextCount)
+
+        if (referenceImageFile) {
+            const colors = await extractColors(referenceImageFile, nextCount)
+            setExtractedColors(colors)
+            setSelectedExtractedColorIndex(colors.length ? 0 : null)
+        }
     }
 
     // Helper function to calculate the total number of parts in the palette
@@ -189,6 +277,23 @@ const Mixer: React.FC = () => {
                 totalParts={ totalParts }
             />
 
+            <div className={ styles.referenceControls }>
+                <ImageUploader onImageSelected={ handleImageSelected } />
+                <label className={ styles.colorCount }>
+                    <span>Color count</span>
+                    <select
+                        value={ extractedColorCount }
+                        onChange={ handleColorCountChange }
+                        data-testid="color-count-select"
+                    >
+                        <option value="auto">Auto</option>
+                        <option value={ 5 }>5</option>
+                        <option value={ 8 }>8</option>
+                        <option value={ 12 }>12</option>
+                    </select>
+                </label>
+            </div>
+
             <ColorSwatches
                 palette={ palette }
                 handleSwatchIncrement={ handleSwatchIncrement }
@@ -196,6 +301,20 @@ const Mixer: React.FC = () => {
                 handleRemoveFromPalette={ handleRemoveFromPalette }
                 updateColorName={ updateColorName }
                 totalParts={ totalParts }
+            />
+
+            <PaintNameSearch
+                onColorSelect={ (rgbString, label) => addToPalette(rgbString, false, label) }
+            />
+
+            <ExtractedColorsPanel
+                colors={ extractedColors }
+                selectedIndex={ selectedExtractedColorIndex }
+                onSelect={ handleExtractedColorSelect }
+                referenceImageUrl={ referenceImageUrl }
+                palette={ basePalette }
+                suggestions={ recipeSuggestions }
+                onApplySuggestion={ handleApplySuggestion }
             />
 
             <AddColorUIComponent
