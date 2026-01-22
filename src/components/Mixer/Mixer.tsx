@@ -43,6 +43,7 @@ const Mixer: React.FC = () => {
     const [ extractedColors, setExtractedColors ] = useState<ExtractedColor[]>([])
     const [ selectedExtractedColorIndex, setSelectedExtractedColorIndex ] = useState<number | null>(null)
     const [ extractedColorCount, setExtractedColorCount ] = useState<number | "auto">("auto")
+    const [ preferDistinctColors, setPreferDistinctColors ] = useState<boolean>(true)
 
     const [ savedPalette, setSavedPalette ] = useLocalStorage('savedPalette', defaultPalette)
     const initialPalette: (any) = savedPalette
@@ -128,12 +129,22 @@ const Mixer: React.FC = () => {
         return palette.some(color => color.partsInMix > 0)
     }
 
+    const refreshExtractedColors = async (
+        file: File,
+        count: number | "auto",
+        distinctMode: boolean
+    ) => {
+        const colors = await extractColors(file, count, {
+            mode: distinctMode ? "distinct" : "dominant",
+        })
+        setExtractedColors(colors)
+        setSelectedExtractedColorIndex(colors.length ? 0 : null)
+    }
+
     const handleImageSelected = async (file: File, objectUrl: string) => {
         setReferenceImageFile(file)
         setReferenceImageUrl(objectUrl)
-        const colors = await extractColors(file, extractedColorCount)
-        setExtractedColors(colors)
-        setSelectedExtractedColorIndex(colors.length ? 0 : null)
+        await refreshExtractedColors(file, extractedColorCount, preferDistinctColors)
     }
 
     const handleExtractedColorSelect = (index: number) => {
@@ -153,9 +164,7 @@ const Mixer: React.FC = () => {
         setExtractedColorCount(nextCount)
 
         if (referenceImageFile) {
-            const colors = await extractColors(referenceImageFile, nextCount)
-            setExtractedColors(colors)
-            setSelectedExtractedColorIndex(colors.length ? 0 : null)
+            await refreshExtractedColors(referenceImageFile, nextCount, preferDistinctColors)
         }
     }
 
@@ -234,6 +243,13 @@ const Mixer: React.FC = () => {
         setIsSavable(!isColorInPalette(mixedColor, palette))
     }, [ mixedColor, palette ])
 
+    useEffect(() => {
+        if (!referenceImageFile) {
+            return
+        }
+        refreshExtractedColors(referenceImageFile, extractedColorCount, preferDistinctColors)
+    }, [ preferDistinctColors ])
+
     return (
 
         <main className={ styles.Mixer }>
@@ -287,10 +303,24 @@ const Mixer: React.FC = () => {
                         data-testid="color-count-select"
                     >
                         <option value="auto">Auto</option>
-                        <option value={ 5 }>5</option>
+                        <option value={ 4 }>4</option>
                         <option value={ 8 }>8</option>
-                        <option value={ 12 }>12</option>
+                        <option value={ 16 }>16</option>
+                        <option value={ 20 }>20</option>
+                        <option value={ 26 }>26</option>
+                        <option value={ 32 }>32</option>
+                        <option value={ 48 }>48</option>
+                        <option value={ 64 }>64</option>
                     </select>
+                </label>
+                <label className={ styles.distinctToggle }>
+                    <span>Prefer distinct colors</span>
+                    <input
+                        type="checkbox"
+                        checked={ preferDistinctColors }
+                        onChange={ (event) => setPreferDistinctColors(event.target.checked) }
+                        data-testid="distinct-toggle"
+                    />
                 </label>
             </div>
 

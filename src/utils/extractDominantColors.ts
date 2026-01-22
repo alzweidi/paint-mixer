@@ -1,8 +1,11 @@
+import { deltaE94, rgbStringToRgb, rgbToXyz, xyzToLab } from "./colorConversion"
+
 type RgbSample = [ number, number, number ]
 
-const MAX_SAMPLE_PIXELS = 60000
+const MAX_SAMPLE_PIXELS = 120000
 const MIN_ALPHA = 128
 const KMEANS_ITERATIONS = 10
+const HASH_MULTIPLIER = 2654435761
 
 const clampToByte = (value: number): number => {
     return Math.max(0, Math.min(255, Math.round(value)))
@@ -13,7 +16,13 @@ const getSamplePixels = (pixels: Uint8ClampedArray): RgbSample[] => {
     const stride = Math.max(1, Math.floor(totalPixels / MAX_SAMPLE_PIXELS))
     const samples: RgbSample[] = []
 
-    for (let i = 0; i < totalPixels; i += stride) {
+    for (let i = 0; i < totalPixels; i++) {
+        if (stride > 1) {
+            const hash = (i * HASH_MULTIPLIER) >>> 0
+            if (hash % stride !== 0) {
+                continue
+            }
+        }
         const idx = i * 4
         const alpha = pixels[ idx + 3 ]
         if (alpha < MIN_ALPHA) {
@@ -23,6 +32,111 @@ const getSamplePixels = (pixels: Uint8ClampedArray): RgbSample[] => {
     }
 
     return samples
+}
+
+const rgbStringToLab = (rgbString: string) => {
+    const rgb = rgbStringToRgb(rgbString)
+    return xyzToLab(rgbToXyz(rgb))
+}
+
+type DistinctSelection = {
+    colors: string[]
+    clusterSizes: number[]
+}
+
+export const selectDistinctColors = (
+    colors: string[],
+    clusterSizes: number[],
+    desiredCount: number
+): DistinctSelection => {
+    const count = Math.max(0, Math.floor(desiredCount))
+    if (!colors.length || count === 0) {
+        return { colors: [], clusterSizes: [] }
+    }
+
+    const sizes = colors.map((_, index) => clusterSizes[ index ] ?? 0)
+    const entries = colors.map((color, index) => ({
+        index,
+        color,
+        size: sizes[ index ],
+        lab: rgbStringToLab(color),
+    }))
+
+    const candidates = entries.filter((entry) => entry.size > 0)
+    if (!candidates.length) {
+        return { colors: [], clusterSizes: [] }
+    }
+
+    const sortedCandidates = candidates.slice().sort((a, b) => (b.size - a.size) || (a.index - b.index))
+
+    const targetCount = Math.min(count, candidates.length)
+    if (targetCount >= candidates.length) {
+        return {
+            colors: sortedCandidates.map((entry) => entry.color),
+            clusterSizes: sortedCandidates.map((entry) => entry.size),
+        }
+    }
+
+    const initialCandidate = sortedCandidates[ 0 ]
+    const selected: typeof candidates = [ initialCandidate ]
+    const selectedIndexSet = new Set([ initialCandidate.index ])
+    const epsilon = 1e-6
+
+    while (selected.length < targetCount) {
+        const remainingCandidates = candidates.filter((candidate) => !selectedIndexSet.has(candidate.index))
+        let bestCandidate = remainingCandidates[ remainingCandidates.length - 1 ]
+        let bestDistance = Number.POSITIVE_INFINITY
+
+        for (const picked of selected) {
+            const distance = deltaE94(bestCandidate.lab, picked.lab)
+            if (distance < bestDistance) {
+                bestDistance = distance
+            }
+        }
+
+        for (let i = remainingCandidates.length - 1; i >= 0; i--) {
+            const candidate = remainingCandidates[ i ]
+            if (candidate.index === bestCandidate.index) {
+                continue
+            }
+            let minDistance = Number.POSITIVE_INFINITY
+            for (const picked of selected) {
+                const distance = deltaE94(candidate.lab, picked.lab)
+                if (distance < minDistance) {
+                    minDistance = distance
+                }
+            }
+
+            if (minDistance > bestDistance + epsilon) {
+                bestCandidate = candidate
+                bestDistance = minDistance
+                continue
+            }
+
+            if (Math.abs(minDistance - bestDistance) <= epsilon) {
+                if (candidate.size > bestCandidate.size) {
+                    bestCandidate = candidate
+                    bestDistance = minDistance
+                    continue
+                }
+                if (
+                    candidate.size === bestCandidate.size &&
+                    candidate.index < bestCandidate.index
+                ) {
+                    bestCandidate = candidate
+                    bestDistance = minDistance
+                }
+            }
+        }
+
+        selected.push(bestCandidate)
+        selectedIndexSet.add(bestCandidate.index)
+    }
+
+    return {
+        colors: selected.map((entry) => entry.color),
+        clusterSizes: selected.map((entry) => entry.size),
+    }
 }
 
 const distanceSquared = (a: RgbSample, b: RgbSample): number => {

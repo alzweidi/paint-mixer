@@ -1,8 +1,25 @@
-import { extractDominantColorsFromPixels, pickAutoColorCount } from "../../utils/extractDominantColors"
+import {
+    extractDominantColorsFromPixels,
+    pickAutoColorCount,
+    selectDistinctColors,
+} from "../../utils/extractDominantColors"
 import { ExtractedColor } from "../../types/types"
 
-const MAX_DIMENSION = 240
-const AUTO_MAX_COLORS = 12
+const MAX_DIMENSION = 480
+const AUTO_MAX_COLORS_DOMINANT = 12
+const AUTO_MAX_COLORS_DISTINCT = 32
+const AUTO_MIN_COLORS_DOMINANT = 5
+const AUTO_MIN_COLORS_DISTINCT = 8
+const AUTO_COVERAGE_PCT_DOMINANT = 99
+const AUTO_COVERAGE_PCT_DISTINCT = 99.5
+const DISTINCT_CANDIDATE_MULTIPLIER = 2
+const MAX_DISTINCT_CANDIDATES = 64
+
+type ExtractionMode = "dominant" | "distinct"
+
+type ExtractColorsOptions = {
+    mode?: ExtractionMode
+}
 
 const loadImage = (src: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
@@ -22,8 +39,39 @@ const toExtractedColors = (colors: string[], clusterSizes: number[]): ExtractedC
     })
 }
 
+const selectColors = (
+    colors: string[],
+    clusterSizes: number[],
+    count: number,
+    mode: ExtractionMode
+) => {
+    if (mode === "distinct") {
+        return selectDistinctColors(colors, clusterSizes, count)
+    }
+
+    return {
+        colors: colors.slice(0, count),
+        clusterSizes: clusterSizes.slice(0, count),
+    }
+}
+
+const resolveCandidateCount = (targetCount: number, mode: ExtractionMode) => {
+    if (mode !== "distinct") {
+        return targetCount
+    }
+
+    const expanded = Math.floor(targetCount * DISTINCT_CANDIDATE_MULTIPLIER)
+    const capped = Math.min(expanded, MAX_DISTINCT_CANDIDATES)
+    return Math.max(targetCount, capped)
+}
+
 export const useImageColorExtraction = () => {
-    const extractColors = async (file: File, colorCount: number | "auto"): Promise<ExtractedColor[]> => {
+    const extractColors = async (
+        file: File,
+        colorCount: number | "auto",
+        options?: ExtractColorsOptions
+    ): Promise<ExtractedColor[]> => {
+        const mode = options?.mode ?? "dominant"
         const objectUrl = URL.createObjectURL(file)
 
         try {
@@ -53,13 +101,25 @@ export const useImageColorExtraction = () => {
             const pixels = ctx.getImageData(0, 0, targetWidth, targetHeight).data
 
             if (colorCount === "auto") {
-                const extraction = extractDominantColorsFromPixels(pixels, AUTO_MAX_COLORS)
+                const maxColors =
+                    mode === "distinct" ? AUTO_MAX_COLORS_DISTINCT : AUTO_MAX_COLORS_DOMINANT
+                const candidateCount = resolveCandidateCount(maxColors, mode)
+                const extraction = extractDominantColorsFromPixels(pixels, candidateCount)
                 const autoCount = pickAutoColorCount(extraction.clusterSizes, {
-                    coveragePct: 99,
-                    min: 5,
-                    max: AUTO_MAX_COLORS,
+                    coveragePct:
+                        mode === "distinct"
+                            ? AUTO_COVERAGE_PCT_DISTINCT
+                            : AUTO_COVERAGE_PCT_DOMINANT,
+                    min: mode === "distinct" ? AUTO_MIN_COLORS_DISTINCT : AUTO_MIN_COLORS_DOMINANT,
+                    max: maxColors,
                 })
-                return toExtractedColors(extraction.colors, extraction.clusterSizes).slice(0, autoCount)
+                const selected = selectColors(
+                    extraction.colors,
+                    extraction.clusterSizes,
+                    autoCount,
+                    mode
+                )
+                return toExtractedColors(selected.colors, selected.clusterSizes)
             }
 
             const requestedCount = Math.max(0, Math.floor(colorCount))
@@ -67,8 +127,15 @@ export const useImageColorExtraction = () => {
                 return []
             }
 
-            const extraction = extractDominantColorsFromPixels(pixels, requestedCount)
-            return toExtractedColors(extraction.colors, extraction.clusterSizes)
+            const candidateCount = resolveCandidateCount(requestedCount, mode)
+            const extraction = extractDominantColorsFromPixels(pixels, candidateCount)
+            const selected = selectColors(
+                extraction.colors,
+                extraction.clusterSizes,
+                requestedCount,
+                mode
+            )
+            return toExtractedColors(selected.colors, selected.clusterSizes)
         } finally {
             URL.revokeObjectURL(objectUrl)
         }
